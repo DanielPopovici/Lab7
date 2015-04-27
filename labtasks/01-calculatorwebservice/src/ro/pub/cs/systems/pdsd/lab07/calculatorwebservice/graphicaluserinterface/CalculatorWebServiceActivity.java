@@ -1,8 +1,28 @@
 package ro.pub.cs.systems.pdsd.lab07.calculatorwebservice.graphicaluserinterface;
 
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.ResponseHandler;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.BasicResponseHandler;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.protocol.HTTP;
+import org.apache.http.util.EntityUtils;
+
 import ro.pub.cs.systems.pdsd.lab07.calculatorwebservice.R;
+import ro.pub.cs.systems.pdsd.lab07.calculatorwebservice.general.Constants;
 import android.app.Activity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -27,7 +47,45 @@ public class CalculatorWebServiceActivity extends Activity {
 			// signal missing values through error messages
 			// get operation from operationsSpinner
 			
+			int error = 0;
+			Integer op1 = null;
+			Integer op2 = null;
+			if(operator1EditText.getText() == null || operator1EditText.getText().length() == 0) {
+				
+				error++;
+			}
+			
+			if(operator2EditText.getText() == null || operator2EditText.getText().length() == 0) {
+				
+				error++;
+			}
+			
+			try {
+				
+				op1 = Integer.parseInt(operator1EditText.getText().toString());
+				op2 = Integer.parseInt(operator2EditText.getText().toString());
+			} catch (Exception e) {
+				
+				error++;
+			}
+			
+			if(error > 0) {
+				
+				resultTextView.post(new Runnable() {
+					
+					@Override
+					public void run() {
+						
+						resultTextView.setText("Eroare: camp necompletat sau eroare de conversie");
+					}
+				});
+				
+				return;
+			}
+			
 			// create an instance of a HttpClient object
+			
+			HttpClient client = new DefaultHttpClient();
 			
 			// get method used for sending request from methodsSpinner
 			
@@ -43,7 +101,58 @@ public class CalculatorWebServiceActivity extends Activity {
 			// d) create an instance of a ResultHandler object
 			// e) execute the request, thus generating the result
 			
+			String method = methodsSpinner.getSelectedItem().toString();
+			final StringBuilder result = new StringBuilder("");
+			if("GET".equals(method)) {
+				
+				HttpGet get = new HttpGet(Constants.GET_WEB_SERVICE_ADDRESS
+                        + "?" + Constants.OPERATION_ATTRIBUTE + "=" + operationsSpinner.getSelectedItem().toString()
+                        + "&" + Constants.OPERATOR1_ATTRIBUTE + "=" + op1
+                        + "&" + Constants.OPERATOR2_ATTRIBUTE + "=" + op2);
+				
+				ResponseHandler<String> responseHandler = new BasicResponseHandler();
+				try {
+					result.append(client.execute(get, responseHandler));
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			else if("POST".equals(method)) {
+				
+				HttpPost httpPost = new HttpPost(Constants.POST_WEB_SERVICE_ADDRESS);
+				List<NameValuePair> params = new ArrayList<NameValuePair>();        
+				params.add(new BasicNameValuePair(Constants.OPERATION_ATTRIBUTE, operationsSpinner.getSelectedItem().toString()));
+				params.add(new BasicNameValuePair(Constants.OPERATOR1_ATTRIBUTE, op1.toString()));
+				params.add(new BasicNameValuePair(Constants.OPERATOR2_ATTRIBUTE, op2.toString()));
+				try {
+				  UrlEncodedFormEntity urlEncodedFormEntity = new UrlEncodedFormEntity(params, HTTP.UTF_8);
+				  httpPost.setEntity(urlEncodedFormEntity);
+				  HttpResponse httpPostResponse = client.execute(httpPost);  
+				  HttpEntity httpPostEntity = httpPostResponse.getEntity();  
+				  if (httpPostEntity != null) {
+				    
+				    result.append(EntityUtils.toString(httpPostEntity));
+				   }
+				} catch (Exception e) {
+					Log.e(Constants.TAG, e.getMessage());
+				  if (Constants.DEBUG) {
+					  e.printStackTrace();
+				  }						
+				}
+				
+				
+			}
+			
 			// display the result in resultTextView
+			resultTextView.post(new Runnable() {
+				
+				@Override
+				public void run() {
+					
+					resultTextView.setText(result.toString());
+				}
+			});
 			
 		}
 	}
